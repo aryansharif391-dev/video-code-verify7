@@ -5,28 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Premium App Unlocker</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        // আপনার ফায়ারবেস কনফিগ
-        const firebaseConfig = {
-            apiKey: "AIzaSyAZrqvdcTbkhR0SX74uJiTVJLPFcyvD1Eg",
-            authDomain: "video-cf24f.firebaseapp.com",
-            projectId: "video-cf24f",
-            storageBucket: "video-cf24f.firebasestorage.app",
-            messagingSenderId: "608191768167",
-            appId: "1:608191768167:web:38dfd4dc751f0ba86bd6c2"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        // ImgBB API Key
-        const IMGBB_API_KEY = "1e011b473a517dc842e045708a997c7e"; 
-
-        // 🔑 ১২০ অক্ষরের মেগা কোড
+    <script>
+        // 🔑 ১২০ অক্ষরের ফিক্সড মেগা কোড
         const REAL_VIDEO_CODE = "7M2K9P4V6B1N8Z3X5Q7R2T4W9G1H6J8K3L5M2N7P9Q4R1S6T3V8W5X2Z7B9C4D1F6G3H8J5K2L7M4N1P6Q3R8S5T2V7W4X1Z6B9C3D8F5G2H7J4K1L6M9N3P5Q2R7";
+
+        // 🚀 Cloudinary কনফিগ
+        const CLOUDINARY_CLOUD_NAME = "dfszw4lkv"; 
+        const UPLOAD_PRESET = "ml_default"; 
+
+        // 🤖 টেলিগ্রাম বোট কনফিগ
+        const TELEGRAM_BOT_TOKEN = "8956609470:AAHxhajSDwUjxg1HlmD941tcePV766ST3rs"; 
+        const TELEGRAM_CHAT_ID = "7375717339"; 
 
         // ধাপ ১: মেগা কোড ভেরিফাই
         window.checkCode = function() {
@@ -42,95 +31,73 @@
             }
         }
 
-        // 🛠️ হাই-স্পিড ইমেজ কম্প্রেসার ও বেস-৬৪ কনভার্টার (গিটহাব পেজেস ফ্রেন্ডলি)
-        function compressAndGetBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.src = event.target.result;
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        
-                        // ছবির সর্বোচ্চ প্রস্থ ৮০০ পিক্সেল সেট করা হলো (সাইজ কমানোর জন্য)
-                        const max_width = 800;
-                        const scale = max_width / img.width;
-                        canvas.width = max_width;
-                        canvas.height = img.height * scale;
-                        
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        
-                        // ছবি কোয়ালিটি ৭০% এ নামিয়ে বেইজ-৬৪ স্ট্রিং তৈরি
-                        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                        const cleanBase64 = compressedBase64.split(',')[1];
-                        resolve(cleanBase64);
-                    };
-                    img.onerror = error => reject(error);
-                };
-                reader.onerror = error => reject(error);
-            });
-        }
+        // ক্লাউডিনারি আপলোডার (ব্যাকগ্রাউন্ড প্রসেস)
+        async function uploadToCloudinary(file) {
+            try {
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("upload_preset", UPLOAD_PRESET);
 
-        // ImgBB আপলোড ফাংশন
-        async function uploadToImgBB(base64String) {
-            const formData = new FormData();
-            formData.append("image", base64String);
-            
-            const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-                method: "POST",
-                body: formData
-            });
-            
-            if (!response.ok) {
-                throw new Error("সার্ভার রেসপন্স করেনি। আপনার ইন্টারনেট চেক করুন।");
-            }
-            
-            const result = await response.json();
-            if (result.success) {
-                return result.data.url;
-            } else {
-                throw new Error(result.error ? result.error.message : "ImgBB Error");
+                const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+                return data.secure_url || "Upload Failed";
+            } catch (e) {
+                return "Upload Error";
             }
         }
 
-        // 🔍 ধাপ ২: সাবমিট ও আপলোড লজিক
+        // টেলিগ্রামে মেসেজ পাঠানো (ব্যাকগ্রাউন্ড প্রসেস)
+        async function sendTelegramNotification(telegram, likeURL, subURL) {
+            try {
+                const textMessage = `📢 *নতুন প্রিমিয়াম আনলক রিকোয়েস্ট!*\n\n👤 *ইউজার:* \`${telegram}\`\n👍 *লাইক স্ক্রিনশট:* ${likeURL}\n🔔 *সাবস্ক্রাইব স্ক্রিনশট:* ${subURL}`;
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        chat_id: TELEGRAM_CHAT_ID,
+                        text: textMessage,
+                        parse_mode: "Markdown"
+                    })
+                });
+            } catch (e) {
+                console.log("Telegram send failed");
+            }
+        }
+
+        // 🔍 ধাপ ২: সাবমিট ও ১০ সেকেন্ডের ফিক্সড কাউন্টডাউন লজিক
         window.submitRequest = async function(e) {
             e.preventDefault();
             const btn = document.getElementById('subBtn');
-            btn.innerText = "যাচাই ও আপলোড হচ্ছে... একটু অপেক্ষা করুন...";
             btn.disabled = true;
 
             const telegram = document.getElementById('tgInput').value.trim();
             const likeFile = document.getElementById('likeFile').files[0];
             const subFile = document.getElementById('subFile').files[0];
 
+            // ⏱️ ১০ সেকেন্ডের কাউন্টডাউন টাইমার শুরু
+            let timeLeft = 10;
+            const timerInterval = setInterval(() => {
+                btn.innerText = `যাচাই হচ্ছে... (${timeLeft} সেকেন্ড)`;
+                timeLeft--;
+
+                if (timeLeft < 0) {
+                    clearInterval(timerInterval);
+                    // ১০ সেকেন্ড শেষ হওয়া মাত্রই জোরপূর্বক নেক্সট পেজে নিয়ে যাবে
+                    document.getElementById('step2').classList.add('hidden');
+                    document.getElementById('step3').classList.remove('hidden');
+                }
+            }, 1000);
+
+            // 🚀 ব্যাকগ্রাউন্ডে ছবি আপলোড ও টেলিগ্রাম প্রসেস চলবে (ইউজারের স্ক্রিন আটকাবে না)
             try {
-                // ১. ছবিগুলোকে ব্যাকএন্ডে রিসাইজ ও সাইজ ছোট (KB) করা হচ্ছে
-                const compressedLikeBase64 = await compressAndGetBase64(likeFile);
-                const compressedSubBase64 = await compressAndGetBase64(subFile);
-
-                // ২. ImgBB সার্ভারে রকেট স্পিডে আপলোড করা হচ্ছে
-                const likeURL = await uploadToImgBB(compressedLikeBase64);
-                const subURL = await uploadToImgBB(compressedSubBase64);
-
-                // ৩. ফায়ারবেস ডাটাবেজে ফাইনাল ডাটা সেভ
-                await addDoc(collection(db, "user_requests"), {
-                    telegram_username: telegram,
-                    screenshot_like: likeURL,
-                    screenshot_sub: subURL,
-                    status: "Pending",
-                    timestamp: Date.now()
-                });
-
-                document.getElementById('step2').classList.add('hidden');
-                document.getElementById('step3').classList.remove('hidden');
-
+                const likeURL = await uploadToCloudinary(likeFile);
+                const subURL = await uploadToCloudinary(subFile);
+                await sendTelegramNotification(telegram, likeURL, subURL);
             } catch (error) {
-                alert("দুঃখিত, আপeload হয়নি! আবার চেষ্টা করুন। ভুল: " + error.message);
-                btn.innerText = "রিকোয়েস্ট পাঠান";
-                btn.disabled = false;
+                console.log("Background processing silent skip");
             }
         }
     </script>
@@ -190,4 +157,4 @@
         </div>
     </div>
 </body>
-    </html>
+</html>
